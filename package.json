@@ -1,0 +1,17 @@
+{
+  "name": "threema",
+  "version": "1.0.0",
+  "description": "",
+  "main": "threemaGetFileNamesAndTimestamps.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "crypto": "^1.0.1",
+    "csvtojson": "^2.0.10",
+    "file-type": "16.0.0",
+    "pkg": "^5.6.0"
+  }
+}
