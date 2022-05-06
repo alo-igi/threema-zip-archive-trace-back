@@ -90,4 +90,6 @@ The project consists of one Nodejs file and the corresponding `package.json`. It
 
 Command used for compiling: `pkg threemaFilesTraceBack.js --options max_old_space_size=8192` (creates code for all platforms)
 
+[package.json](https://github.com/alo-igi/threema-files-trace-back/blob/main/package.json) includes the newest versions of all modules, except for `file-type` where the version is fixed to 16.0.0. Compiling with `pkg`didn't work for `"type": "module"` and thus newer versions of `file-type`.
+
 Any suggestions or any feedback is highly appreciated.
