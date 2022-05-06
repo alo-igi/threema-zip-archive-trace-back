@@ -40,26 +40,26 @@ What it does
 
 `threemaFilesTraceBack` works directly on the files in the chosen folder. First, it creates sub-folders for each contact and group. Then it moves the files for the contact or group into its corresponding sub-folder, then it renames all files, and sets their timestamps to the moment they were posted.
 
-Before running `threemaFilesTraceBack` you have a flat folder with a lot of cryptically named files without extensions, all with the mainly the same timestamp.
+Before running `threemaFilesTraceBack` you have a flat folder with a lot of cryptically named files without extensions, all with mainly the same timestamp.
 
 Afterwards you have a sub-folder structure with human readable names, populated with files with human readable names, with correct timetamps, and with correct extensions.
 
-__Note:__ depending on the configuration `threemaFilesTraceBack` deletes some of the files completely. With standard configuration:
+__Note 1:__ depending on the configuration `threemaFilesTraceBack` deletes some of the files completely! Standard configuration:
 - delete thumbnails of pictures with existing original;
-- delete duplicates of files within a folder
+- delete duplicates of files within a folder.
 
-__Note:__ `threemaFilesTraceBack` cannot determine the timestamp a file was originally created. It can only determine the timestamp a file was posted in a conversation.
+__Note 2:__ `threemaFilesTraceBack` cannot determine the timestamp a file was originally created. It can only determine the timestamp a file was posted in a conversation.
 
 
 If you want or need to know more
 --------------------------------
 
-With the standard configuration ...
-- `threemaFilesTraceBack` deletes thumbnails of pictures with existing original. Set `"deleteThumbnailIfOriginalExists": false,` in the configuration file to change this behavior.
-- `threemaFilesTraceBack` deletes duplicate files within a folder. It keeps the first one posted. Set `"removeDuplicatesWithinFolder": false,` in the configuration file to change this behavior.
-- `threemaFilesTraceBack` deletes empty sub-folders. Set `"removeEmptyFolders": false,` in the configuration file to change this behavior.
-- `threemaFilesTraceBack` lists all duplicate files throughout the whole archive in the file `_duplicates.txt`. Change `"saveDuplicateFileNamesTo": "_duplicates.txt",` in the configuration file according to your needs. Change to `"saveDuplicateFileNamesTo": null,` to skip this step.
-- `threemaFilesTraceBack` creates a log file with extension `.log` for each run. Only relevant messages are contained. Change the parameter `minimumLevelForLogging` in the configuration file to get less or more information. Allowed values: `"minimumLevelForLogging": "trace",`, `"minimumLevelForLogging": "debug",`, `"minimumLevelForLogging": "info",` (default), `"minimumLevelForLogging": "warn",`, `"minimumLevelForLogging": "error",`, `"minimumLevelForLogging": "fatal",`.
+With the standard configuration `threemaFilesTraceBack`  ...
+- deletes thumbnails of pictures with existing original.\ Set `"deleteThumbnailIfOriginalExists": false,` in the configuration file to change this behavior.
+- deletes duplicate files within a folder. It keeps the first one posted. \Set `"removeDuplicatesWithinFolder": false,` in the configuration file to change this behavior.
+- deletes empty sub-folders. \Set `"removeEmptyFolders": false,` in the configuration file to change this behavior.
+- lists all duplicate files throughout the whole archive in the file `_duplicates.txt`. \Change `"saveDuplicateFileNamesTo": "_duplicates.txt",` in the configuration file according to your needs. Change to `"saveDuplicateFileNamesTo": null,` to skip this step.
+- creates a log file with extension `.log` for each run. Only relevant messages are contained. \Change the parameter `minimumLevelForLogging` in the configuration file to get less or more information. Allowed values: `"minimumLevelForLogging": "trace",`, `"minimumLevelForLogging": "debug",`, `"minimumLevelForLogging": "info",` (default), `"minimumLevelForLogging": "warn",`, `"minimumLevelForLogging": "error",`, `"minimumLevelForLogging": "fatal",`.
 
 You can run `threemaFilesTraceBack.exe` from a command line: `[path]threemaFilesTraceBack [folder] [-r|--recursive] [-?|-h|--help]`
 
