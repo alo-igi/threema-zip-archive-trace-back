@@ -55,11 +55,16 @@ If you want or need to know more
 --------------------------------
 
 With the standard configuration `threemaFilesTraceBack`  ...
-- deletes thumbnails of pictures with existing original.\ Set `"deleteThumbnailIfOriginalExists": false,` in the configuration file to change this behavior.
-- deletes duplicate files within a folder. It keeps the first one posted. \Set `"removeDuplicatesWithinFolder": false,` in the configuration file to change this behavior.
-- deletes empty sub-folders. \Set `"removeEmptyFolders": false,` in the configuration file to change this behavior.
-- lists all duplicate files throughout the whole archive in the file `_duplicates.txt`. \Change `"saveDuplicateFileNamesTo": "_duplicates.txt",` in the configuration file according to your needs. Change to `"saveDuplicateFileNamesTo": null,` to skip this step.
-- creates a log file with extension `.log` for each run. Only relevant messages are contained. \Change the parameter `minimumLevelForLogging` in the configuration file to get less or more information. Allowed values: `"minimumLevelForLogging": "trace",`, `"minimumLevelForLogging": "debug",`, `"minimumLevelForLogging": "info",` (default), `"minimumLevelForLogging": "warn",`, `"minimumLevelForLogging": "error",`, `"minimumLevelForLogging": "fatal",`.
+- deletes thumbnails of pictures with existing original.\
+  Set `"deleteThumbnailIfOriginalExists": false,` in the configuration file to change this behavior.
+- deletes duplicate files within a folder. It keeps the first one posted.\
+  Set `"removeDuplicatesWithinFolder": false,` in the configuration file to change this behavior.
+- deletes empty sub-folders.\
+  Set `"removeEmptyFolders": false,` in the configuration file to change this behavior.
+- lists all duplicate files throughout the whole archive in the file `_duplicates.txt`.\
+  Change `"saveDuplicateFileNamesTo": "_duplicates.txt",` in the configuration file according to your needs. Change to `"saveDuplicateFileNamesTo": null,` to skip this step.
+- creates a log file with extension `.log` for each run. Only relevant messages are contained.\
+  Change the parameter `minimumLevelForLogging` in the configuration file to get less or more information. Allowed values: `"minimumLevelForLogging": "trace",`, `"minimumLevelForLogging": "debug",`, `"minimumLevelForLogging": "info",` (default), `"minimumLevelForLogging": "warn",`, `"minimumLevelForLogging": "error",`, `"minimumLevelForLogging": "fatal",`.
 
 You can run `threemaFilesTraceBack.exe` from a command line: `[path]threemaFilesTraceBack [folder] [-r|--recursive] [-?|-h|--help]`
 
