@@ -2,13 +2,13 @@
 'use strict'
 
 //================================================================================
-const author = 'A. Krähenmann, standard.mail@gmx.net'
+const author = 'Alois Ignaz Krähenmann, a.i@kraehenmann.org'
 //--------------------------------------------------------------------------------
-const sourceDate = '2022-05-05T18:58:31.243Z'
+const sourceDate = '2022-05-26T09:34:40.501Z'
 const sourceVersion = 'v0.9.0'
 
 //================================================================================
-// compile with "pkg", don't use "nexe", the generated code is not stable!!!
+// Compile with "pkg". Don't use "nexe", the generated code is not stable!!!
 // pkg threemaFilesTraceBack.js --targets latest-win-x64 --options max_old_space_size=8192
 //================================================================================
 // Threema stores backups as password protected zip archives.
@@ -66,18 +66,22 @@ const sourceVersion = 'v0.9.0'
 
 
 //================================================================================
+const strftimeLanguage = 'DE' // choose from 'DE', 'EN', 'FR', 'IT'; 'EN' = default
+
+//================================================================================
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
 const csvtojson = require('csvtojson') // https://github.com/Keyang/node-csvtojson#api
 const fileType = require('file-type')
+const probe = require('node-ffprobe')
 
 
 //--------------------------------------------------------------------------------
 // list of CSV columns that contain interesting text:
 const textCsvHeaders = ['body', 'caption'] // in fact, they are all mandatory
 // full list of CSV columns that are used for processing:
-const relevantHeaders = textCsvHeaders.concat(['uid', 'identity', 'type', 'fileTimestamp', 'fileTimestampISO']) // in fact, they are all mandatory
+const relevantHeaders = textCsvHeaders.concat(['uid', 'identity', 'isoutbox', 'type', 'fileTimestamp', 'fileTimestampISO']) // in fact, they are all mandatory
 // list of CSV columns that must be present to recognize a file of messages:
 const messagesFileHeaders = ['uid', 'type', 'created_at'] // if these headers are present in a CSV file then it contains a list of messages
 //--------------------------------------------------------------------------------
@@ -87,29 +91,34 @@ const groupCsvHeaders = ['identity', 'fullname', 'id'] // "identity" and "fullna
 const contactCsvHeaders = groupCsvHeaders
 
 //--------------------------------------------------------------------------------
-const findOriginal = { // if two files differ in their names exclusively by "find" vs. "original", the "find" file will be marked with "found"; can be deleted:
+const findOriginal = { // if a filename contains "find", and another one contains "original", and the filenames are otherwise equal then the former is marked with "found"; or deleted completely if "deleteThumbnailIfOriginalExists = true":
 	find: 'thumbnail',
 	original: 'media',
 	found: '~_'
 }
-const specialFilenames = { // files with these names must be handled especially:
+const skipFiles = ['identity', 'settings'] // files ("base") that should not be processed at all
+const specialCsvFiles = { // files with these names must be handled especially:
 	contacts: 'contacts',
 	groups: 'groups'
 }
-const skipFilenames = ['ballot', 'ballot_choice', 'ballot_vote', 'distribution_list'].concat(Object.values(specialFilenames))
-const csvToJson = { // parameters for the CSV to JSON conversion; derived from the file format Threema is generating:
+const skipCsvFiles = ['ballot', 'ballot_choice', 'ballot_vote', 'distribution_list'].concat(Object.values(specialCsvFiles)) // CSV files to skip
+// parameters for the CSV to JSON conversion; derived from the file format Threema is using:
+const csvToJson = { 
 	noheader: false,
 	delimiter: ',',
 	quote: '"'
 }
 //--------------------------------------------------------------------------------
 const logLevels = ['trace', 'debug', 'info', 'warn', 'error', 'fatal']
-const logLevelTrace = 0 // for convenience and code stability
-const logLevelDebug = 1 // for convenience and code stability
-const logLevelInfo = 2 // for convenience and code stability
-const logLevelWarn = 3 // for convenience and code stability
-const logLevelError = 4 // for convenience and code stability
-const logLevelFatal = 5 // for convenience and code stability
+const logLevelStrings = ['[TRACE]', '[DEBUG]', '[INFORMATION]', '[WARNING]', '[ERROR]', '[FATAL ERROR]']
+const logLevelUnknown = `[???]` // for invalid log level values
+// declare array indexes as constants (for convenience and code stability):
+const logLevelTrace = 0
+const logLevelDebug = 1
+const logLevelInfo = 2
+const logLevelWarn = 3
+const logLevelError = 4
+const logLevelFatal = 5
 //--------------------------------------------------------------------------------
 // command line parameters:
 const cmdParam1 = 'recursive'
@@ -122,6 +131,9 @@ const invalidParamTypeSwitch = 2
 //--------------------------------------------------------------------------------
 const cfgFileExtension = '.config'
 const logFileExtension = '.log'
+//--------------------------------------------------------------------------------
+const knownFileTypes = ['csv', 'txt', logFileExtension.replace(/^\.+/, '')] // no type recognition needed for files with these extensions
+
 
 //--------------------------------------------------------------------------------
 // The parameters for logging are a circle of the "chicken and the egg": must be used before being defined definitely; best approximation: will be adjusted several times with more information available
@@ -134,7 +146,7 @@ let globals = {
 	prgExt: path.extname(process.argv[1])
 }
 // Derive configuration filename from program filename:
-globals.cfgFile = ensureTrailingSlash() + globals.prgName + cfgFileExtension
+globals.cfgFile = ensureTrailingSlash(null) + globals.prgName + cfgFileExtension
 
 
 //--------------------------------------------------------------------------------
@@ -149,20 +161,20 @@ let configuration = {
 	saveMessagesTextsTo: '_texts.txt',
 	fileTimestampFormat: '%Y-%m-%d %H:%M:%S', // https://github.com/thdoan/strftime/blob/master/strftime.js
 	textTimestampFormat: '%Y-%m-%d %H:%M:%S', // https://github.com/thdoan/strftime/blob/master/strftime.js
-	days: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
-	months: ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
+	days: ((strftimeLanguage === 'DE') ? ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'] : ((strftimeLanguage === 'FR') ? ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'] : ((strftimeLanguage === 'IT') ? ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'] : ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']))),
+	months: ((strftimeLanguage === 'DE') ? ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'] : ((strftimeLanguage === 'FR') ? ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'] : ((strftimeLanguage === 'IT') ? ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'] : ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']))),
 	replaceFileNamePart: {
-		group: '',
-		media: '',
-		message: '',
-		thumbnail: 'tn'
+		'group': '', // in filenames replace "group" by ""
+		'media': '', // in filenames replace "media" by ""
+		'message': '', // in filenames replace "message" by ""
+		'thumbnail': 'tn' // in filenames replace "thumbnail" by "tn"
 	},
-	replaceStringPart: {
+	replaceStringPart: { // define more filename parts and their replacement:
 		//'_': '+',
 		//'~': '!!!!!!'
 	}
 }
-adjustLogParameters(ensureTrailingSlash(), configuration) // re-define log parameters with current path and current configuration
+adjustLogParameters(ensureTrailingSlash(null), configuration) // re-define log parameters with current path and current configuration
 
 
 //--------------------------------------------------------------------------------
@@ -230,7 +242,7 @@ function readConfiguration(sourceDir) {
 }
 
 //--------------------------------------------------------------------------------
-// Format configuration object for logging output:
+// Helper to pretty print configuration object (for logging output):
 function formatConfiguration(o) {
 	// first, split object into individual lines, then re-join the lines for each array:
 	return JSON.stringify(o, null, 2).split('\n').map(s => '  ' + s).join('\n').replace(/\[([^\]]*)\]/g, ($1, $2) => `[` + $2.replace(/\s+/g, ' ').trim() + `]`)
@@ -266,11 +278,11 @@ function usage(exitCode = 0) {
 }
 
 //--------------------------------------------------------------------------------
-// Do logging if requested level is greater or equal to global log level; or if level is a string:
+// Do logging if requested "level" is greater or equal to global log level; or if "level" is a string:
 function doLog(level, s) {
 	let ok = (typeof level === 'string')
 	if ((typeof level === 'number') && (level >= globals.logLevel)) {
-		level = ((level === 0) ? `Trace` : ((level === 1) ? `Debug` : ((level === 2) ? `Information` : ((level === 3) ? `Warning` : ((level === 4) ? `Error` : ((level === 5) ? `Fatal error` : `???`)))))) + `: `
+		level = (logLevelStrings[level] || logLevelUnknown) + `: `
 		ok = true
 	}
 	if (ok) {
@@ -356,7 +368,7 @@ function strftime(date, sFormat) {
 		};
 	return sFormat.replace(/%[a-z]/gi, function(sMatch) {
 		return (({
-			'%à': configuration.days[nDay].slice(0,2),
+			'%à': configuration.days[nDay].slice(0,2), // additional code for languages like German that require 2-letter abreviations
 			'%a': configuration.days[nDay].slice(0,3),
 			'%A': configuration.days[nDay],
 			'%b': configuration.months[nMonth].slice(0,3),
@@ -417,7 +429,7 @@ function argvSwitch(argv, param) {
 }
 
 //--------------------------------------------------------------------------------
-// Check synchronously if file exists (current user is allowed to read):
+// Check synchronously if file or folder exists:
 function pathExistsSync(fullName) {
 	try {
 		return fs.existsSync(fullName)
@@ -429,15 +441,21 @@ function pathExistsSync(fullName) {
 
 //--------------------------------------------------------------------------------
 // Create folder synchronously:
-function createDirSync(path, recursive = true) {
+function createDirSync(path, doThrow = true, recursive = true) {
 	try {
 		if (!pathExistsSync(path)) {
 			fs.mkdirSync(path, { recursive: recursive }) // "recursive" creates all the needed folders "on the way"
 		}
+		return true
 
 	} catch(err) {
 		doLog(logLevelError, `could not create directory '` + path + `'; ` + err)
-		throw err
+		if (doThrow) {
+			throw err
+
+		} else {
+			return false
+		}
 	}
 }
 
@@ -460,7 +478,7 @@ function ensureTrailingSlash(s) {
 }
 
 //--------------------------------------------------------------------------------
-// Return the sha256 hash for a file:
+// Return the sha256 hash for a file; "file" is an object that will get additional hash keys:
 function getHash(file, fullName) {
 	try {
 		const fileBuffer = fs.readFileSync(fullName)
@@ -482,13 +500,27 @@ function getHash(file, fullName) {
 }
 
 //--------------------------------------------------------------------------------
+// "node-ffprobe" returns an object, its key "format_long_name" is a string that has to be analyzed heuristically (sad thing)
+// Examples for "format_long_name": "MPEG-PS (MPEG-2 Program Stream)", "QuickTime / MOV", "raw MPEG video"
+function getType(s) {
+	s = s.replace(/\([^)]*\)/g, '').toLowerCase().trim() // drop information in parenthesis
+	if (s === 'modplug demuxer') { // special case "mid":
+		s = 'mid'
+
+	} else if (/raw\s+[^\s]/i.test(s)) { // get second word if string is like "raw ..."
+		s = s.replace('raw adts', 'raw').replace(/^.*raw\s+([^\s]+).*$/, ($1, $2) => $2).trim()
+	}
+	return s.split(' ').pop().replace('2/3', '3').replace('wave', 'wav').replace('voice', 'voc').replace('mpeg-4', 'mp4').replace('realmedia', 'rm').split(/\W/)[0] // take only first part in a word; e.g. "mpeg" of "mpeg-ps"
+}
+
+//--------------------------------------------------------------------------------
 // Get the timestamp (stored as guid) in a filename from known timestamps:
 function timestampFromFilename(a, fileTimestamps) {
 	if (!Array.isArray(a)) { // string was provided:
 		a = a.split('_')
 	}
 	for (let s of a) {
-		if (fileTimestamps[s] !== undefined) {
+		if (fileTimestamps[s] !== undefined) { // "fileTimestamps" contains the real timestamp to the timestamp guid
 			return fileTimestamps[s]
 		}
 	}
@@ -502,7 +534,7 @@ function identityFromFilename(a, identities) {
 		a = a.split('_')
 	}
 	for (let s of a) {
-		if (identities[s] !== undefined) {
+		if (identities[s] !== undefined) { // "identities" contains the fulltext identity to the identity guid
 			return identities[s]
 		}
 	}
@@ -518,7 +550,7 @@ function identityFromFilename(a, identities) {
 }
 
 //--------------------------------------------------------------------------------
-// Try to replace parts of a filename by known identities and by replacements defined in the configuration:
+// Try to replace parts of a filename 1) by known identities and 2) by replacements defined in the configuration:
 // params = { includeReplaceParts [true|false], includeReplaceChars [true|false] }
 function replaceNameParts(a, identities, params) {
 	if (!Array.isArray(a)) { // string was provided:
@@ -619,7 +651,7 @@ function arrayContainsArray(a, b) {
 // Call: a.sort(dynamicSort('[key]')) (asc) or a.sort(dynamicSort('-[key]')) (desc)
 function dynamicSort(key) {
 	let sortOrder = 1
-	if (key[0] === '-') {
+	if (key.charAt(0) === '-') {
 		sortOrder = -1
 		key = key.slice(1)
 	}
@@ -636,7 +668,7 @@ function dynamicSort(key) {
 //--------------------------------------------------------------------------------
 // Read (recursively) all files from a directory and return them unordered as array of objects with keys fullname, root, dir, base, ext, name, dev, mode, nlink, uid, gid, rdev, blksize, ino, size, blocks, atimeMs, mtimeMs, ctimeMs, birthtimeMs, atime, mtime, ctime, birthtime:
 // Collect all empty folders "on the way", remove them in the end if "delEmptyFolders" is "true."
-function readDirSync(dir, recursive, fullnameRegExp, delEmptyFolders = false) {
+function getAllFilesSync(dir, recursive, fullnameRegExp, delEmptyFolders = false) {
 	try {
 		let files = [] // list of files, no sub-folders
 		let empties = [] // gather empty sub-folders on the way
@@ -647,7 +679,7 @@ function readDirSync(dir, recursive, fullnameRegExp, delEmptyFolders = false) {
 			const stat = fs.statSync(file.fullname)
 			if (stat.isDirectory() && recursive) {
 				let l = files.length
-				files = files.concat(readDirSync(file.fullname, recursive, fullnameRegExp, delEmptyFolders))
+				files = files.concat(getAllFilesSync(file.fullname, recursive, fullnameRegExp, delEmptyFolders))
 				if (files.length === l) {
 					empties.push(String(file.fullname.length).padStart(5, '0') + '\t' + file.fullname) // add sort string to the left; tab-delimited
 				}
@@ -718,7 +750,7 @@ async function getCsvFileAsJSON(file, isMessagesCsv = true) {
 // "main" = self-invocation of an async function:
 (async () => {
 	// set default values:
-	let sourceDir = ensureTrailingSlash() // use current directory
+	let sourceDir = ensureTrailingSlash(null) // use current directory
 	let recursive = false
 	adjustLogParameters(sourceDir, configuration)
 
@@ -760,7 +792,7 @@ async function getCsvFileAsJSON(file, isMessagesCsv = true) {
 
 		try {
 			// make sure source directory is not empty:
-			let files = readDirSync(sourceDir, recursive) // throws with message on error
+			let files = getAllFilesSync(sourceDir, recursive) // throws with message on error
 			//doLog(logLevelFatal, JSON.stringify(files, null, '\t'))
 			if ((!Array.isArray(files)) || (!files.length)) {
 				throw new Error(`no files found in directory '` + sourceDir + `'`)
@@ -806,7 +838,7 @@ async function getCsvFileAsJSON(file, isMessagesCsv = true) {
 			let identities = []
 			//------------------------------------------------------------
 			// extract all contacts:
-			let contactFullnames = csvFiles.filter(o => o.name.toLowerCase() === specialFilenames.contacts).map(o => o.fullname)
+			let contactFullnames = csvFiles.filter(o => o.name.toLowerCase() === specialCsvFiles.contacts).map(o => o.fullname)
 			for (let contactFullname of contactFullnames) {
 				identities = identities.concat((await getCsvFileAsJSON(contactFullname, false)).map(o => {
 					let tokens = o.lastname.split(' ').concat(o.firstname.split(' ')).concat(o.nick_name.split(' ')).concat([o.identity])
@@ -821,7 +853,7 @@ async function getCsvFileAsJSON(file, isMessagesCsv = true) {
 
 			//------------------------------------------------------------
 			// extract all groups:
-			let groupFullnames = csvFiles.filter(o => o.name.toLowerCase() === specialFilenames.groups).map(o => o.fullname)
+			let groupFullnames = csvFiles.filter(o => o.name.toLowerCase() === specialCsvFiles.groups).map(o => o.fullname)
 			for (let groupFullname of groupFullnames) {
 				identities = identities.concat((await getCsvFileAsJSON(groupFullname, false)).map(o => {
 					o.identity = o.id + '-' + o.creator // that's how Threema uses group identifiers
@@ -848,7 +880,7 @@ async function getCsvFileAsJSON(file, isMessagesCsv = true) {
 				csv.identity = identityFromFilename(csv.name, identities)
 				csv.nameExplicit = replaceNameParts(csv.name, identities, { includeReplaceParts: true, includeReplaceChars: false }) // performs "validPlatformName"
 				csv.destDir = ensureTrailingSlash(sourceDir + csv.nameExplicit)
-				if (skipFilenames.indexOf(csv.name) === -1) { // skip some of the csv files
+				if (skipCsvFiles.indexOf(csv.name) === -1) { // skip some of the csv files
 					createDirSync(sourceDir + csv.nameExplicit)
 					// read CSV rows, extend by Nodejs date objects:
 					csv.rows = (await getCsvFileAsJSON(csv.fullname)).map(o => {
@@ -896,6 +928,11 @@ async function getCsvFileAsJSON(file, isMessagesCsv = true) {
 							} catch(err) { // ends up here most of the times; every time it is really a text:
 								if (csv.rows[i][s]) {
 									let author = ((csv.rows[i].identity && identities[csv.rows[i].identity]) ? identities[csv.rows[i].identity].fullname : null)
+									if ((!author) && (csv.rows[i].isoutbox !== undefined)) { // in contact conversations the flag "isoutbox" contains the information about the sender:
+										console.log(JSON.stringify(csv.rows[i]))
+										console.log(JSON.stringify(csv.identity))
+										author = (Number(csv.rows[i].isoutbox) ? `me` : csv.identity.fullname)
+									}
 									csv.texts.push(String(csv.rows[i].fileTimestampISO.getTime()).padStart(14, '0') + String(i).padStart(5, '0') + '\t[' + strftime(csv.rows[i].fileTimestampISO, configuration.textTimestampFormat) + '] ' + cleanText(csv.rows[i][s]) + ((author) ? ` [` + author + `]` : ``)) // keep the text
 								}
 							}
@@ -934,11 +971,32 @@ async function getCsvFileAsJSON(file, isMessagesCsv = true) {
 
 				//------------------------------------------------------------
 				// determine file type:
-				if ((dest.ext === 'csv') || (dest.ext === 'log') || (dest.ext === 'txt') || /identity/i.test(file.name) || /settings/i.test(file.name)) {
+
+				if ((knownFileTypes.indexOf(dest.ext) !== -1) || (skipFiles.indexOf(file.base) !== -1)) {
 					dest.type = { ext: dest.ext } // store it in the way "file-type" does
 
 				} else {
-					dest.type = await fileType.fromFile(file.fullname) // may return null
+					try {
+						dest.type = await fileType.fromFile(file.fullname) // may return null; object { ext: ..., ... } otherwise
+						if (!dest.type) {
+							throw new Error(`:-(`)
+						}
+
+					} catch(err) {
+						try {
+							let tmp = await probe(file.fullname) // may throw
+							if (tmp && tmp.format && tmp.format.format_long_name) {
+								dest.type = { ext: getType(tmp.format.format_long_name) }
+
+							} else {
+								throw new Error(`:-(`)
+							}
+
+						} catch(err) {
+							doLog(logLevelError, `could not determine file type for file '` + file.fullname + `'; tried several approaches, giving up`)
+							dest.type = { ext: dest.ext } // use default
+						}
+					}
 				}
 
 				//------------------------------------------------------------
@@ -1103,7 +1161,7 @@ async function getCsvFileAsJSON(file, isMessagesCsv = true) {
 			//------------------------------------------------------------
 			// finally, delete empty folders if requested:
 			if (configuration.removeEmptyFolders) {
-				readDirSync(sourceDir, true, undefined, true) // throws with message on error
+				getAllFilesSync(sourceDir, true, undefined, true) // throws with message on error
 			}
 
 		} catch(err) {
