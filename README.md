@@ -26,7 +26,7 @@ This is described for Windows, all steps should easily be adaptable to Mac or Li
 
 - If you want to override the standard configuration, download also the JSON configuration file `threemaFilesTraceBack.config` (all operating systems).
 
-- Unarchive a Threema backup (`zip`) file into a folder. It is strongly recommended that you use a new and empty folder.
+- Unarchive one of your Threema backup (`zip`) files into an empty folder. It is strongly recommended that the folder be empty before unarchiving.
 
 - Copy the downloaded `threemaFilesTraceBack.exe` into the same folder.
 
@@ -42,20 +42,22 @@ What it does
 
 Before running `threemaFilesTraceBack` you have a flat folder with a lot of cryptically named files without extensions, all with mainly the same timestamp.
 
-Afterwards you have a sub-folder structure with human readable names, populated with files with human readable names, with correct timetamps, and with correct extensions.
+Afterwards you have a sub-folder structure with human readable foldernames, populated with files with human readable filenames, with correct timetamps, and with correct extensions.
 
-__Note 1:__ depending on the configuration `threemaFilesTraceBack` deletes some of the files completely! Standard configuration:
+__Note 1:__ with the built-in standard configuration `threemaFilesTraceBack` deletes some of the files completely:
 - delete thumbnails of pictures with existing original;
 - delete duplicates of files within a folder.
 
-__Note 2:__ `threemaFilesTraceBack` cannot determine the timestamp a file was originally created. It can only determine the timestamp a file was posted in a conversation.
+This is non-critical since the deleted files are quality-reduced duplicates or duplicates in the first place. All files still exist in the original Threema archive file anyways.
+
+__Note 2:__ `threemaFilesTraceBack` cannot determine the timestamp a file was originally created at. It can only determine the timestamp a file was posted in a conversation.
 
 
 If you want or need to know more
 --------------------------------
 
-With the standard configuration `threemaFilesTraceBack`  ...
-- deletes thumbnails of pictures with existing original.\
+With the built-in standard configuration `threemaFilesTraceBack`  ...
+- deletes thumbnails of pictures if the original exists.\
   Set `"deleteThumbnailIfOriginalExists": false,` in the configuration file to change this behavior.
 - deletes duplicate files within a folder. It keeps the first one posted.\
   Set `"removeDuplicatesWithinFolder": false,` in the configuration file to change this behavior.
@@ -66,8 +68,7 @@ With the standard configuration `threemaFilesTraceBack`  ...
   Change to `"saveDuplicateFileNamesTo": null,` to skip this step.
 - creates a log file with extension `.log` for each run. Only relevant messages are contained.\
   Change the parameter `minimumLevelForLogging` in the configuration file to get less or more information. Allowed values: `"minimumLevelForLogging": "trace",`, `"minimumLevelForLogging": "debug",`, `"minimumLevelForLogging": "info",` (default), `"minimumLevelForLogging": "warn",`, `"minimumLevelForLogging": "error",`, `"minimumLevelForLogging": "fatal",`.\
-  Set `"logTo": null,` in the configuration file to omit logging into a file. Logging on the command line, however, cannot be omitted.
-
+  Add `"logTo": null,` to the configuration file to omit logging into a file. Logging on the command line, however, always takes place.
 
 You can run `threemaFilesTraceBack.exe` from a command line: `[path]threemaFilesTraceBack [folder] [-r|--recursive] [-?|-h|--help]`
 
@@ -77,12 +78,20 @@ You can run `threemaFilesTraceBack.exe` from a command line: `[path]threemaFiles
 
 - `-?`, `-h`, `--help` displays a short help notice
 
+`threemaFilesTraceBack` formats timestamps according to the configuration. It uses the very lean [strftime](https://github.com/thdoan/strftime); many thanks to [thdoan](https://github.com/thdoan)! `threemaFilesTraceBack` accepts all [strftime](https://github.com/thdoan/strftime) placeholders, and additionally the placeholder `%à` for 2-character-abbreviated name of the day of the week.
+
+If you use a [strftime](https://github.com/thdoan/strftime) format that prints names of months (e.g. `%b`) or days of the week (e.g. `%a`), you will probably want to change the [configuration file](https://github.com/alo-igi/threema-files-trace-back/blob/main/threemaFilesTraceBack.config) according to your language. The built-in standard configuration uses __German__ terms. 
+
 
 For programmers
 ---------------
 
-The project consists of one Nodejs file and the corresponding `package.json`. It is compiled with `pkg`. Compiling with `nexe` worked, however, the generated code showed some strange behavior and could not be used.
+The project consists of one Nodejs file and the corresponding `package.json`. It is compiled with `pkg`. Compiling with `nexe` worked, however, the generated code showed some strange behavior and led to incorrect data.
 
-Command used for compiling: `pkg threemaFilesTraceBack.js --options max_old_space_size=8192` (creates code for all platforms)
+Command used for compiling:
+- to create code for all platforms: `pkg threemaFilesTraceBack.js --options max_old_space_size=8192`
+- to create code for Win64 exclusively: `pkg threemaFilesTraceBack.js --targets latest-win-x64 --options max_old_space_size=8192`
+
+[package.json](https://github.com/alo-igi/threema-files-trace-back/blob/main/package.json) includes the newest versions of all modules, except for `file-type` for which the version is fixed to 16.0.0. Compiling with `pkg`didn't work for `"type": "module"` and thus newer versions of `file-type`.
 
 Any suggestions or any feedback is highly appreciated.
