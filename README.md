@@ -1,5 +1,5 @@
 # threema-files-trace-back
-Retrieve files and conversation texts from a Threema archive
+Retrieve files and conversation texts from a Threema messenger archive
 
 
 Overview
