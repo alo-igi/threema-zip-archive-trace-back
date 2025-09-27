@@ -931,7 +931,7 @@ async function getCsvFileAsJSON(file, isMessagesCsv = true) {
 									if ((!author) && (csv.rows[i].isoutbox !== undefined)) { // in contact conversations the flag "isoutbox" contains the information about the sender:
 										console.log(JSON.stringify(csv.rows[i]))
 										console.log(JSON.stringify(csv.identity))
-										author = (Number(csv.rows[i].isoutbox) ? `me` : csv.identity.fullname)
+										author = (Number(csv.rows[i].isoutbox) ? `me` : (csv.identity && csv.identity.fullname ? csv.identity.fullname : 'unknown'))
 									}
 									csv.texts.push(String(csv.rows[i].fileTimestampISO.getTime()).padStart(14, '0') + String(i).padStart(5, '0') + '\t[' + strftime(csv.rows[i].fileTimestampISO, configuration.textTimestampFormat) + '] ' + cleanText(csv.rows[i][s]) + ((author) ? ` [` + author + `]` : ``)) // keep the text
 								}
